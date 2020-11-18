@@ -42,6 +42,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
@@ -152,6 +153,7 @@ public class S3Client extends DB {
         String maxConnections = null;
         String protocol = null;
         BasicAWSCredentials s3Credentials;
+        S3ClientOptions s3ClientOptions;
         ClientConfiguration clientConfig;
         if (s3Client != null) {
           System.out.println("Reusing the same client");
@@ -161,7 +163,9 @@ public class S3Client extends DB {
           InputStream propFile = S3Client.class.getClassLoader()
               .getResourceAsStream("s3.properties");
           Properties props = new Properties(System.getProperties());
-          props.load(propFile);
+          if (propFile != null) {
+            props.load(propFile);
+          }
           accessKeyId = props.getProperty("s3.accessKeyId");
           if (accessKeyId == null){
             accessKeyId = propsCL.getProperty("s3.accessKeyId");
@@ -212,8 +216,12 @@ public class S3Client extends DB {
           System.out.println("Inizializing the S3 connection");
           s3Credentials = new BasicAWSCredentials(accessKeyId, secretKey);
           clientConfig = new ClientConfiguration();
+          s3ClientOptions = S3ClientOptions.builder()
+              .setPathStyleAccess(true)
+              .disableChunkedEncoding()
+              .build();
           clientConfig.setMaxErrorRetry(Integer.parseInt(maxErrorRetry));
-          if(protocol.equals("HTTP")) {
+          if(protocol.equals("HTTP") || protocol.equals("http")) {
             clientConfig.setProtocol(Protocol.HTTP);
           } else {
             clientConfig.setProtocol(Protocol.HTTPS);
@@ -221,9 +229,11 @@ public class S3Client extends DB {
           if(maxConnections != null) {
             clientConfig.setMaxConnections(Integer.parseInt(maxConnections));
           }
+          clientConfig.setUseExpectContinue(false);
           s3Client = new AmazonS3Client(s3Credentials, clientConfig);
           s3Client.setRegion(Region.getRegion(Regions.fromName(region)));
           s3Client.setEndpoint(endPoint);
+          s3Client.setS3ClientOptions(s3ClientOptions);
           System.out.println("Connection successfully initialized");
         } catch (Exception e){
           System.err.println("Could not connect to S3 storage: "+ e.toString());
